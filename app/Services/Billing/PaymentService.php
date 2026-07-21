@@ -26,7 +26,7 @@ class PaymentService
                 'amount' => $data['amount'],
                 'payment_date' => $data['payment_date'],
                 'method' => $data['method'] ?? 'transfer',
-                'status' => $data['status'] ?? 'pending',
+                'status' => 'pending',
                 'collector_id' => $data['collector_id'] ?? $invoice->collector_id,
                 'notes' => $data['notes'] ?? null,
             ]);
