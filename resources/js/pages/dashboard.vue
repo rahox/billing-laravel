@@ -113,6 +113,84 @@ const revenueDonutOptions = computed(() => ({
   tooltip: { y: { formatter: val => formatCurrency(val) } },
   plotOptions: { pie: { donut: { labels: { show: true, total: { show: true, label: 'Total Pendapatan', formatter: w => formatCurrency(w.globals.seriesTotals.reduce((a, b) => a + b, 0)) } } } } },
 }))
+
+// Grafik status per peran: pakai data yang sudah ada di ringkasan masing-masing.
+const statusChartConfig = computed(() => {
+  const s = summary.value
+
+  if (role.value === 'super-admin') {
+    return {
+      title: 'Status Invoice',
+      labels: ['Lunas', 'Cicilan', 'Belum Lunas'],
+      series: [s.invoice_lunas ?? 0, s.invoice_cicilan ?? 0, s.invoice_belum_lunas ?? 0],
+      colors: ['#56CA00', '#FFB400', '#FF4C51'],
+      isCurrency: false,
+      totalLabel: 'Total Invoice',
+    }
+  }
+  if (role.value === 'reseller') {
+    return {
+      title: 'Status Invoice',
+      labels: ['Lunas', 'Cicilan', 'Belum Lunas'],
+      series: [s.lunas ?? 0, s.cicilan ?? 0, s.belum_lunas ?? 0],
+      colors: ['#56CA00', '#FFB400', '#FF4C51'],
+      isCurrency: false,
+      totalLabel: 'Total Invoice',
+    }
+  }
+  if (role.value === 'sales') {
+    return {
+      title: 'Status Komisi',
+      labels: ['Komisi Pending', 'Komisi Terbayar'],
+      series: [s.komisi_pending ?? 0, s.komisi_paid ?? 0],
+      colors: ['#FFB400', '#56CA00'],
+      isCurrency: true,
+      totalLabel: 'Total Komisi',
+    }
+  }
+  if (role.value === 'collector') {
+    return {
+      title: 'Progres Penagihan',
+      labels: ['Sisa Tagihan', 'Berhasil Ditagih'],
+      series: [s.total_perlu_ditagih ?? 0, s.total_berhasil_ditagih ?? 0],
+      colors: ['#FF4C51', '#56CA00'],
+      isCurrency: true,
+      totalLabel: 'Total',
+    }
+  }
+
+  return null
+})
+
+const statusChartSeries = computed(() => statusChartConfig.value?.series ?? [])
+
+const statusChartOptions = computed(() => {
+  const cfg = statusChartConfig.value
+  if (!cfg)
+    return {}
+
+  const format = value => (cfg.isCurrency ? formatCurrency(value) : formatNumber(value))
+
+  return {
+    labels: cfg.labels,
+    colors: cfg.colors,
+    legend: { position: 'bottom' },
+    dataLabels: { enabled: true, formatter: val => `${Number(val).toFixed(0)}%` },
+    tooltip: { y: { formatter: value => format(value) } },
+    plotOptions: {
+      pie: {
+        donut: {
+          labels: {
+            show: true,
+            total: { show: true, label: cfg.totalLabel, formatter: w => format(w.globals.seriesTotals.reduce((a, b) => a + b, 0)) },
+          },
+        },
+      },
+    },
+  }
+})
+
+const statusChartHasData = computed(() => statusChartSeries.value.some(v => v > 0))
 </script>
 
 <template>
@@ -141,6 +219,25 @@ const revenueDonutOptions = computed(() => ({
           md="3"
         >
           <CardStatisticsVertical v-bind="card" />
+        </VCol>
+      </VRow>
+
+      <VRow v-if="statusChartConfig" class="match-height mt-1">
+        <VCol cols="12" md="6">
+          <VCard :title="statusChartConfig.title">
+            <VCardText>
+              <apexchart
+                v-if="statusChartHasData"
+                type="donut"
+                height="300"
+                :options="statusChartOptions"
+                :series="statusChartSeries"
+              />
+              <p v-else class="text-medium-emphasis text-center py-10">
+                Belum ada data untuk periode ini.
+              </p>
+            </VCardText>
+          </VCard>
         </VCol>
       </VRow>
 
