@@ -7,18 +7,29 @@ const to = ref('')
 const invoices = ref([])
 const summary = ref({})
 const loading = ref(false)
+const page = ref(1)
+const totalItems = ref(0)
+const itemsPerPage = ref(20)
 
 async function loadReport() {
   loading.value = true
   try {
-    const { data } = await client.get('/reports/transactions', { params: { from: from.value || undefined, to: to.value || undefined } })
+    const { data } = await client.get('/reports/transactions', {
+      params: { from: from.value || undefined, to: to.value || undefined, page: page.value, per_page: itemsPerPage.value },
+    })
 
-    invoices.value = data.invoices
+    invoices.value = data.invoices.data
+    totalItems.value = data.invoices.total
     summary.value = data.summary
   }
   finally {
     loading.value = false
   }
+}
+
+function applyFilter() {
+  page.value = 1
+  loadReport()
 }
 
 onMounted(loadReport)
@@ -48,7 +59,7 @@ const statusColor = status => ({ lunas: 'success', cicilan: 'warning', belum_lun
           <VTextField v-model="to" type="date" label="Sampai Tanggal" />
         </VCol>
         <VCol cols="12" md="3" class="d-flex align-end">
-          <VBtn block @click="loadReport">
+          <VBtn block @click="applyFilter">
             Terapkan
           </VBtn>
         </VCol>
@@ -98,7 +109,15 @@ const statusColor = status => ({ lunas: 'success', cicilan: 'warning', belum_lun
       </VRow>
     </VCardText>
 
-    <VDataTable :items="invoices" :headers="headers" :loading="loading" :items-per-page="20">
+    <VDataTableServer
+      v-model:page="page"
+      :items="invoices"
+      :items-length="totalItems"
+      :items-per-page="itemsPerPage"
+      :headers="headers"
+      :loading="loading"
+      @update:options="loadReport"
+    >
       <template #item.invoice_date="{ item }">
         {{ formatDate(item.invoice_date) }}
       </template>
@@ -113,6 +132,6 @@ const statusColor = status => ({ lunas: 'success', cicilan: 'warning', belum_lun
           {{ item.status }}
         </VChip>
       </template>
-    </VDataTable>
+    </VDataTableServer>
   </VCard>
 </template>

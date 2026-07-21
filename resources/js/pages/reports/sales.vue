@@ -7,18 +7,29 @@ const to = ref('')
 const commissions = ref([])
 const summary = ref({})
 const loading = ref(false)
+const page = ref(1)
+const totalItems = ref(0)
+const itemsPerPage = ref(20)
 
 async function loadReport() {
   loading.value = true
   try {
-    const { data } = await client.get('/reports/sales', { params: { from: from.value || undefined, to: to.value || undefined } })
+    const { data } = await client.get('/reports/sales', {
+      params: { from: from.value || undefined, to: to.value || undefined, page: page.value, per_page: itemsPerPage.value },
+    })
 
-    commissions.value = data.commissions
+    commissions.value = data.commissions.data
+    totalItems.value = data.commissions.total
     summary.value = data.summary
   }
   finally {
     loading.value = false
   }
+}
+
+function applyFilter() {
+  page.value = 1
+  loadReport()
 }
 
 onMounted(loadReport)
@@ -45,7 +56,7 @@ const headers = [
           <VTextField v-model="to" type="date" label="Sampai Tanggal" />
         </VCol>
         <VCol cols="12" md="3" class="d-flex align-end">
-          <VBtn block @click="loadReport">
+          <VBtn block @click="applyFilter">
             Terapkan
           </VBtn>
         </VCol>
@@ -87,7 +98,15 @@ const headers = [
       </VRow>
     </VCardText>
 
-    <VDataTable :items="commissions" :headers="headers" :loading="loading" :items-per-page="20">
+    <VDataTableServer
+      v-model:page="page"
+      :items="commissions"
+      :items-length="totalItems"
+      :items-per-page="itemsPerPage"
+      :headers="headers"
+      :loading="loading"
+      @update:options="loadReport"
+    >
       <template #item.earned_date="{ item }">
         {{ formatDate(item.earned_date) }}
       </template>
@@ -105,6 +124,6 @@ const headers = [
           {{ item.status }}
         </VChip>
       </template>
-    </VDataTable>
+    </VDataTableServer>
   </VCard>
 </template>

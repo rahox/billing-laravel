@@ -7,13 +7,23 @@ const history = ref([])
 const summary = ref({})
 const loading = ref(false)
 
+const outstandingPage = ref(1)
+const outstandingTotal = ref(0)
+const historyPage = ref(1)
+const historyTotal = ref(0)
+const perPage = ref(20)
+
 async function loadReport() {
   loading.value = true
   try {
-    const { data } = await client.get('/reports/collector')
+    const { data } = await client.get('/reports/collector', {
+      params: { ditagih_page: outstandingPage.value, riwayat_page: historyPage.value, per_page: perPage.value },
+    })
 
-    outstanding.value = data.perlu_ditagih
-    history.value = data.riwayat_pembayaran
+    outstanding.value = data.perlu_ditagih.data
+    outstandingTotal.value = data.perlu_ditagih.total
+    history.value = data.riwayat_pembayaran.data
+    historyTotal.value = data.riwayat_pembayaran.total
     summary.value = data.summary
   }
   finally {
@@ -94,7 +104,15 @@ const historyHeaders = [
   </VRow>
 
   <VCard title="Perlu Ditagih" class="mt-6">
-    <VDataTable :items="outstanding" :headers="outstandingHeaders" :loading="loading" :items-per-page="20">
+    <VDataTableServer
+      v-model:page="outstandingPage"
+      :items="outstanding"
+      :items-length="outstandingTotal"
+      :items-per-page="perPage"
+      :headers="outstandingHeaders"
+      :loading="loading"
+      @update:options="loadReport"
+    >
       <template #item.due_date="{ item }">
         {{ formatDate(item.due_date) }}
       </template>
@@ -109,11 +127,19 @@ const historyHeaders = [
       <template #item.actions="{ item }">
         <VBtn icon="ri-eye-line" variant="text" size="small" :to="`/invoices/${item.id}`" />
       </template>
-    </VDataTable>
+    </VDataTableServer>
   </VCard>
 
   <VCard title="Riwayat Konfirmasi Pembayaran" class="mt-6">
-    <VDataTable :items="history" :headers="historyHeaders" :loading="loading" :items-per-page="20">
+    <VDataTableServer
+      v-model:page="historyPage"
+      :items="history"
+      :items-length="historyTotal"
+      :items-per-page="perPage"
+      :headers="historyHeaders"
+      :loading="loading"
+      @update:options="loadReport"
+    >
       <template #item.payment_date="{ item }">
         {{ formatDate(item.payment_date) }}
       </template>
@@ -125,6 +151,6 @@ const historyHeaders = [
           {{ item.status }}
         </VChip>
       </template>
-    </VDataTable>
+    </VDataTableServer>
   </VCard>
 </template>
