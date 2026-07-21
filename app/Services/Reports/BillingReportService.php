@@ -5,6 +5,7 @@ namespace App\Services\Reports;
 use App\Models\Commission;
 use App\Models\Invoice;
 use App\Models\Payment;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class BillingReportService
@@ -24,10 +25,10 @@ class BillingReportService
             $base->where('reseller_id', $resellerId);
         }
         if ($from) {
-            $base->whereDate('invoice_date', '>=', $from);
+            $base->where('invoice_date', '>=', $from);
         }
         if ($to) {
-            $base->whereDate('invoice_date', '<=', $to);
+            $base->where('invoice_date', '<', Carbon::parse($to)->addDay()->toDateString());
         }
 
         $summary = (clone $base)->selectRaw("
@@ -66,10 +67,10 @@ class BillingReportService
         $base = Commission::query()->where('sales_id', $salesId);
 
         if ($from) {
-            $base->whereDate('earned_date', '>=', $from);
+            $base->where('earned_date', '>=', $from);
         }
         if ($to) {
-            $base->whereDate('earned_date', '<=', $to);
+            $base->where('earned_date', '<', Carbon::parse($to)->addDay()->toDateString());
         }
 
         $summary = (clone $base)->selectRaw("
@@ -114,10 +115,10 @@ class BillingReportService
 
         $paymentsBase = Payment::query()->where('collector_id', $collectorId);
         if ($from) {
-            $paymentsBase->whereDate('payment_date', '>=', $from);
+            $paymentsBase->where('payment_date', '>=', $from);
         }
         if ($to) {
-            $paymentsBase->whereDate('payment_date', '<=', $to);
+            $paymentsBase->where('payment_date', '<', Carbon::parse($to)->addDay()->toDateString());
         }
 
         $paymentsSummary = (clone $paymentsBase)->selectRaw("
@@ -148,10 +149,10 @@ class BillingReportService
     {
         $query = Invoice::query();
         if ($from) {
-            $query->whereDate('invoice_date', '>=', $from);
+            $query->where('invoice_date', '>=', $from);
         }
         if ($to) {
-            $query->whereDate('invoice_date', '<=', $to);
+            $query->where('invoice_date', '<', Carbon::parse($to)->addDay()->toDateString());
         }
 
         $summary = $query->selectRaw("
