@@ -3,14 +3,43 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "dev": "vite",
         "build": "vite build",
-        "dev": "vite"
+        "build:icons": "tsx resources/js/plugins/iconify/build-icons.js",
+        "postinstall": "npm run build:icons"
+    },
+    "dependencies": {
+        "@floating-ui/dom": "1.6.8",
+        "@iconify-json/bxl": "^1.1.10",
+        "@vueuse/core": "^10.11.1",
+        "@vueuse/math": "^10.11.1",
+        "apexcharts": "^3.54.1",
+        "axios": "^1.7.9",
+        "pinia": "^2.3.0",
+        "roboto-fontface": "^0.10.0",
+        "vue": "^3.5.13",
+        "vue-router": "^4.5.0",
+        "vue3-apexcharts": "1.5.2",
+        "vue3-perfect-scrollbar": "^2.0.0",
+        "vuetify": "3.7.5",
+        "webfontloader": "^1.6.28"
     },
     "devDependencies": {
-        "@tailwindcss/vite": "^4.0.0",
+        "@iconify-json/ri": "^1.2.1",
+        "@iconify/tools": "^4.0.7",
+        "@iconify/utils": "^2.1.13",
+        "@iconify/vue": "4.1.2",
+        "@vitejs/plugin-vue": "^5.2.1",
+        "@vitejs/plugin-vue-jsx": "^4.1.1",
         "concurrently": "^9.0.1",
-        "laravel-vite-plugin": "^3.1",
-        "tailwindcss": "^4.0.0",
-        "vite": "^8.0.0"
+        "laravel-vite-plugin": "^1.0",
+        "playwright": "^1.61.1",
+        "sass": "~1.76.0",
+        "tsx": "^4.19.2",
+        "unplugin-auto-import": "^0.18.6",
+        "unplugin-vue-components": "^0.27.5",
+        "vite": "^5.4.11",
+        "vite-plugin-vuetify": "2.0.3",
+        "vite-svg-loader": "^5.1.0"
     }
 }

@@ -23,9 +23,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Master data pelanggan: semua role terkait bisa lihat, create dibatasi role tertentu, hapus khusus owner.
     Route::get('customers', [CustomerController::class, 'index']);
-    Route::post('customers', [CustomerController::class, 'store'])->middleware('role:super-admin,reseller,sales');
+    Route::post('customers', [CustomerController::class, 'store'])->middleware('role:super-admin|reseller|sales');
     Route::get('customers/{customer}', [CustomerController::class, 'show']);
-    Route::patch('customers/{customer}', [CustomerController::class, 'update'])->middleware('role:super-admin,reseller');
+    Route::patch('customers/{customer}', [CustomerController::class, 'update'])->middleware('role:super-admin|reseller');
     Route::delete('customers/{customer}', [CustomerController::class, 'destroy'])->middleware('role:super-admin');
 
     // Produk & diskon: dikelola owner, dilihat semua role.
@@ -47,19 +47,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Transaksi (item invoice): owner & reseller yang membuat.
     Route::get('transactions', [TransactionController::class, 'index']);
-    Route::post('transactions', [TransactionController::class, 'store'])->middleware('role:super-admin,reseller');
+    Route::post('transactions', [TransactionController::class, 'store'])->middleware('role:super-admin|reseller');
     Route::get('transactions/{transaction}', [TransactionController::class, 'show']);
-    Route::delete('transactions/{transaction}', [TransactionController::class, 'destroy'])->middleware('role:super-admin,reseller');
+    Route::delete('transactions/{transaction}', [TransactionController::class, 'destroy'])->middleware('role:super-admin|reseller');
 
     // Invoice: dibentuk dari transaksi oleh owner & reseller.
     Route::get('invoices', [InvoiceController::class, 'index']);
-    Route::post('invoices', [InvoiceController::class, 'store'])->middleware('role:super-admin,reseller');
+    Route::post('invoices', [InvoiceController::class, 'store'])->middleware('role:super-admin|reseller');
     Route::get('invoices/{invoice}', [InvoiceController::class, 'show']);
 
     // Pembayaran: dicatat & dikonfirmasi oleh collector (atau owner).
     Route::get('payments', [PaymentController::class, 'index']);
-    Route::post('payments', [PaymentController::class, 'store'])->middleware('role:super-admin,collector');
-    Route::post('payments/{payment}/confirm', [PaymentController::class, 'confirm'])->middleware('role:super-admin,collector');
+    Route::post('payments', [PaymentController::class, 'store'])->middleware('role:super-admin|collector');
+    Route::post('payments/{payment}/confirm', [PaymentController::class, 'confirm'])->middleware('role:super-admin|collector');
 
     // Beban/pembelian: dicatat owner.
     Route::get('expenses', [ExpenseController::class, 'index'])->middleware('role:super-admin');
@@ -76,9 +76,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('reports')->group(function () {
-        Route::get('transactions', [ReportController::class, 'transactions'])->middleware('role:super-admin,reseller');
-        Route::get('sales', [ReportController::class, 'sales'])->middleware('role:super-admin,sales');
-        Route::get('collector', [ReportController::class, 'collector'])->middleware('role:super-admin,collector');
+        Route::get('transactions', [ReportController::class, 'transactions'])->middleware('role:super-admin|reseller');
+        Route::get('sales', [ReportController::class, 'sales'])->middleware('role:super-admin|sales');
+        Route::get('collector', [ReportController::class, 'collector'])->middleware('role:super-admin|collector');
         Route::get('income-statement', [ReportController::class, 'incomeStatement'])->middleware('role:super-admin');
         Route::get('balance-sheet', [ReportController::class, 'balanceSheet'])->middleware('role:super-admin');
     });
