@@ -77,4 +77,48 @@ class AccountingReportServiceTest extends TestCase
 
         $this->assertSame(-5000000.0, $report['net_income']);
     }
+
+    public function test_dashboard_financials_summarizes_revenue_expense_and_monthly_trend(): void
+    {
+        $customer = $this->createCustomer();
+        $internet = $this->createInternetProduct(['price' => 200000]);
+        $device = $this->createDeviceProduct(['price' => 350000, 'cost_price' => 250000]);
+
+        $trxInternet = app(TransactionService::class)->create(['customer_id' => $customer->id, 'product_id' => $internet->id]);
+        app(InvoiceBuilder::class)->build(collect([$trxInternet]));
+
+        $trxDevice = app(TransactionService::class)->create(['customer_id' => $customer->id, 'product_id' => $device->id]);
+        app(InvoiceBuilder::class)->build(collect([$trxDevice]));
+
+        $today = now();
+        $result = app(AccountingReportService::class)->dashboardFinancials($today->copy()->startOfMonth()->toDateString(), $today->toDateString());
+
+        $this->assertSame(550000.0, $result['total_pendapatan']);
+        $this->assertEqualsWithDelta($result['total_pendapatan'] - $result['total_beban'], $result['laba_bersih'], 0.01);
+
+        $categories = collect($result['pendapatan_by_category'])->pluck('name');
+        $this->assertTrue($categories->contains('Pendapatan Jasa Internet'));
+        $this->assertTrue($categories->contains('Pendapatan Penjualan Perangkat'));
+        $this->assertTrue(collect($result['pendapatan_by_category'])->every(fn ($row) => $row['value'] > 0));
+
+        $this->assertNotEmpty($result['monthly_trend']);
+        $currentMonth = collect($result['monthly_trend'])->last();
+        $this->assertSame(550000.0, $currentMonth['pendapatan']);
+    }
+
+    public function test_dashboard_endpoint_returns_financials_for_super_admin_only(): void
+    {
+        $admin = $this->createUserWithRole('super-admin');
+        $sales = $this->createUserWithRole('sales');
+
+        $adminResponse = $this->actingAs($admin)->getJson('/api/dashboard');
+        $adminResponse->assertOk()->assertJsonStructure([
+            'role', 'summary',
+            'financials' => ['total_pendapatan', 'total_beban', 'laba_bersih', 'pendapatan_by_category', 'beban_by_category', 'monthly_trend'],
+        ]);
+
+        $salesResponse = $this->actingAs($sales)->getJson('/api/dashboard');
+        $salesResponse->assertOk();
+        $this->assertArrayNotHasKey('financials', $salesResponse->json());
+    }
 }

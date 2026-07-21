@@ -115,4 +115,52 @@ class AccountingReportService
             'is_balanced' => abs($totalAssets - ($totalLiabilities + $totalEquity)) < 1,
         ];
     }
+
+    /**
+     * Ringkasan pendapatan & beban untuk dashboard owner: total periode berjalan,
+     * tren bulanan, dan komposisi pendapatan/beban per akun untuk grafik.
+     */
+    public function dashboardFinancials(?string $from = null, ?string $to = null): array
+    {
+        $to = $to ? Carbon::parse($to) : now();
+        $from = $from ? Carbon::parse($from) : $to->copy()->subMonths(5)->startOfMonth();
+
+        $period = $this->incomeStatement($from->toDateString(), $to->toDateString());
+
+        $trend = collect();
+        $cursor = $from->copy()->startOfMonth();
+        while ($cursor->lte($to)) {
+            $monthEnd = $cursor->copy()->endOfMonth();
+            if ($monthEnd->gt($to)) {
+                $monthEnd = $to->copy();
+            }
+
+            $monthReport = $this->incomeStatement($cursor->toDateString(), $monthEnd->toDateString());
+            $trend->push([
+                'month' => $cursor->translatedFormat('M Y'),
+                'pendapatan' => $monthReport['total_revenue'],
+                'beban' => round($monthReport['total_cogs'] + $monthReport['total_opex'], 2),
+                'laba' => $monthReport['net_income'],
+            ]);
+
+            $cursor->addMonthNoOverflow();
+        }
+
+        return [
+            'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
+            'total_pendapatan' => $period['total_revenue'],
+            'total_beban' => round($period['total_cogs'] + $period['total_opex'], 2),
+            'laba_bersih' => $period['net_income'],
+            'pendapatan_by_category' => $period['revenue']
+                ->filter(fn ($row) => $row['balance'] > 0)
+                ->map(fn ($row) => ['name' => $row['name'], 'value' => $row['balance']])
+                ->sortByDesc('value')
+                ->values(),
+            'beban_by_category' => $period['cogs']->concat($period['opex'])
+                ->map(fn ($row) => ['name' => $row['name'], 'value' => $row['balance']])
+                ->sortByDesc('value')
+                ->values(),
+            'monthly_trend' => $trend->values(),
+        ];
+    }
 }

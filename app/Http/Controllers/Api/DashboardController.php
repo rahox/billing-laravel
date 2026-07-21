@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\Reports\AccountingReportService;
 use App\Services\Reports\BillingReportService;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function __construct(private BillingReportService $reports) {}
+    public function __construct(
+        private BillingReportService $reports,
+        private AccountingReportService $accountingReports,
+    ) {}
 
     public function index(Request $request)
     {
@@ -18,6 +22,7 @@ class DashboardController extends Controller
             return response()->json([
                 'role' => 'super-admin',
                 'summary' => $this->reports->dashboardSummary($request->query('from'), $request->query('to')),
+                'financials' => $this->accountingReports->dashboardFinancials($request->query('from'), $request->query('to')),
             ]);
         }
 
