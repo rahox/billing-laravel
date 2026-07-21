@@ -15,11 +15,24 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $this->call([
+            RoleSeeder::class,
+            ChartOfAccountSeeder::class,
+        ]);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $owner = User::firstOrCreate(
+            ['email' => 'owner@bill-isp.test'],
+            [
+                'name' => 'Super Admin',
+                'password' => 'password',
+                'phone' => '081234500001',
+                'is_active' => true,
+            ]
+        );
+        $owner->assignRole('super-admin');
+
+        $this->call([
+            DemoDataSeeder::class,
         ]);
     }
 }
