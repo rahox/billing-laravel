@@ -29,6 +29,24 @@ php artisan serve
 
 Database default: SQLite (`database/database.sqlite`), tinggal ganti `DB_CONNECTION` di `.env` untuk MySQL/PostgreSQL di produksi.
 
+### Data dummy skala besar (uji performa)
+
+`DemoDataSeeder` membuat ~128 pelanggan dengan riwayat billing kurasi sejak Jan 2026 (untuk demo).
+Untuk uji performa dengan jumlah pelanggan yang jauh lebih besar, jalankan `BulkCustomerSeeder`
+setelah seeder utama — pelanggan tambahan dibuat dengan tanggal aktivasi 60 hari terakhir
+(riwayat billing pendek) supaya proses generate tetap wajar meski jumlahnya besar:
+
+```bash
+# default 16000 pelanggan tambahan; sesuaikan lewat env BULK_CUSTOMER_COUNT
+BULK_CUSTOMER_COUNT=16000 php artisan db:seed --class="Database\\Seeders\\BulkCustomerSeeder"
+```
+
+Perkiraan waktu proses: ~100ms/pelanggan (tiap pelanggan diproses lewat service billing yang sama
+seperti transaksi sungguhan — perhitungan pajak, jurnal double-entry, dsb — bukan bulk insert),
+jadi 16.000 pelanggan ≈ 25-30 menit. Ini biaya satu kali saat generate data, bukan biaya per
+request setelahnya — endpoint dashboard & laporan memakai agregasi SQL + pagination server-side
+sehingga tetap responsif (~15-20ms) berapa pun jumlah baris di database.
+
 ## Akun demo (password semua: `password`)
 
 - Owner (super-admin): `owner@bill-isp.test`

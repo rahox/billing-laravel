@@ -10,7 +10,8 @@ class Transaction extends Model
     protected $fillable = [
         'transaction_number', 'customer_id', 'product_id', 'discount_id', 'transaction_date',
         'period_start', 'period_end', 'qty', 'unit_price', 'discount_amount', 'subtotal',
-        'ppn_amount', 'bhp_amount', 'uso_amount', 'total', 'invoice_id', 'status', 'notes', 'created_by',
+        'ppn_amount', 'bhp_amount', 'uso_amount', 'total', 'invoice_id', 'delivery_order_id',
+        'status', 'notes', 'created_by',
     ];
 
     protected function casts(): array
@@ -47,6 +48,11 @@ class Transaction extends Model
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    public function deliveryOrder(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryOrder::class);
     }
 
     public function creator(): BelongsTo

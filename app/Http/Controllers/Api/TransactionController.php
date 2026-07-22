@@ -36,6 +36,12 @@ class TransactionController extends Controller
         if ($customerId = $request->query('customer_id')) {
             $query->where('customer_id', $customerId);
         }
+        if ($productType = $request->query('product_type')) {
+            $query->whereHas('product', fn ($q) => $q->where('type', $productType));
+        }
+        if ($request->boolean('undelivered_only')) {
+            $query->whereNull('delivery_order_id');
+        }
 
         return response()->json($query->orderByDesc('id')->paginate($request->integer('per_page', 15)));
     }

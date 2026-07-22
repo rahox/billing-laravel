@@ -6,6 +6,14 @@ import CardStatisticsVertical from '@core/components/cards/CardStatisticsVertica
 
 const authStore = useAuthStore()
 const summary = ref({})
+const financials = ref({
+  total_pendapatan: 0,
+  total_beban: 0,
+  laba_bersih: 0,
+  pendapatan_by_category: [],
+  beban_by_category: [],
+  monthly_trend: [],
+})
 const role = ref('')
 const isLoading = ref(true)
 
@@ -16,6 +24,8 @@ async function loadDashboard() {
 
     summary.value = data.summary
     role.value = data.role
+    if (data.financials)
+      financials.value = data.financials
   }
   finally {
     isLoading.value = false
@@ -64,6 +74,123 @@ const cards = computed(() => {
 
   return []
 })
+
+const financialCards = computed(() => {
+  const f = financials.value
+
+  return [
+    { title: 'Total Pendapatan', stats: formatCurrency(f.total_pendapatan), icon: 'ri-line-chart-line', color: 'success' },
+    { title: 'Total Beban', stats: formatCurrency(f.total_beban), icon: 'ri-shopping-bag-3-line', color: 'error' },
+    { title: 'Laba Bersih', stats: formatCurrency(f.laba_bersih), icon: 'ri-scales-3-line', color: f.laba_bersih >= 0 ? 'primary' : 'error' },
+  ]
+})
+
+const trendChartSeries = computed(() => [
+  { name: 'Pendapatan', data: financials.value.monthly_trend.map(m => m.pendapatan) },
+  { name: 'Beban', data: financials.value.monthly_trend.map(m => m.beban) },
+])
+
+const trendChartOptions = computed(() => ({
+  chart: { type: 'area', toolbar: { show: false }, parentHeightOffset: 0 },
+  colors: ['#56CA00', '#FF4C51'],
+  dataLabels: { enabled: false },
+  stroke: { curve: 'smooth', width: 2 },
+  fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.05 } },
+  legend: { position: 'top', horizontalAlign: 'end' },
+  grid: { strokeDashArray: 6 },
+  xaxis: { categories: financials.value.monthly_trend.map(m => m.month) },
+  yaxis: { labels: { formatter: val => formatCurrency(val) } },
+  tooltip: { y: { formatter: val => formatCurrency(val) } },
+}))
+
+const revenueDonutSeries = computed(() => financials.value.pendapatan_by_category.map(c => c.value))
+
+const revenueDonutOptions = computed(() => ({
+  labels: financials.value.pendapatan_by_category.map(c => c.name),
+  colors: ['#8C57FF', '#16B1FF', '#FFB400', '#56CA00', '#FF4C51'],
+  legend: { position: 'bottom' },
+  dataLabels: { enabled: true, formatter: val => `${Number(val).toFixed(0)}%` },
+  tooltip: { y: { formatter: val => formatCurrency(val) } },
+  plotOptions: { pie: { donut: { labels: { show: true, total: { show: true, label: 'Total Pendapatan', formatter: w => formatCurrency(w.globals.seriesTotals.reduce((a, b) => a + b, 0)) } } } } },
+}))
+
+// Grafik status per peran: pakai data yang sudah ada di ringkasan masing-masing.
+const statusChartConfig = computed(() => {
+  const s = summary.value
+
+  if (role.value === 'super-admin') {
+    return {
+      title: 'Status Invoice',
+      labels: ['Lunas', 'Cicilan', 'Belum Lunas'],
+      series: [s.invoice_lunas ?? 0, s.invoice_cicilan ?? 0, s.invoice_belum_lunas ?? 0],
+      colors: ['#56CA00', '#FFB400', '#FF4C51'],
+      isCurrency: false,
+      totalLabel: 'Total Invoice',
+    }
+  }
+  if (role.value === 'reseller') {
+    return {
+      title: 'Status Invoice',
+      labels: ['Lunas', 'Cicilan', 'Belum Lunas'],
+      series: [s.lunas ?? 0, s.cicilan ?? 0, s.belum_lunas ?? 0],
+      colors: ['#56CA00', '#FFB400', '#FF4C51'],
+      isCurrency: false,
+      totalLabel: 'Total Invoice',
+    }
+  }
+  if (role.value === 'sales') {
+    return {
+      title: 'Status Komisi',
+      labels: ['Komisi Pending', 'Komisi Terbayar'],
+      series: [s.komisi_pending ?? 0, s.komisi_paid ?? 0],
+      colors: ['#FFB400', '#56CA00'],
+      isCurrency: true,
+      totalLabel: 'Total Komisi',
+    }
+  }
+  if (role.value === 'collector') {
+    return {
+      title: 'Progres Penagihan',
+      labels: ['Sisa Tagihan', 'Berhasil Ditagih'],
+      series: [s.total_perlu_ditagih ?? 0, s.total_berhasil_ditagih ?? 0],
+      colors: ['#FF4C51', '#56CA00'],
+      isCurrency: true,
+      totalLabel: 'Total',
+    }
+  }
+
+  return null
+})
+
+const statusChartSeries = computed(() => statusChartConfig.value?.series ?? [])
+
+const statusChartOptions = computed(() => {
+  const cfg = statusChartConfig.value
+  if (!cfg)
+    return {}
+
+  const format = value => (cfg.isCurrency ? formatCurrency(value) : formatNumber(value))
+
+  return {
+    labels: cfg.labels,
+    colors: cfg.colors,
+    legend: { position: 'bottom' },
+    dataLabels: { enabled: true, formatter: val => `${Number(val).toFixed(0)}%` },
+    tooltip: { y: { formatter: value => format(value) } },
+    plotOptions: {
+      pie: {
+        donut: {
+          labels: {
+            show: true,
+            total: { show: true, label: cfg.totalLabel, formatter: w => format(w.globals.seriesTotals.reduce((a, b) => a + b, 0)) },
+          },
+        },
+      },
+    },
+  }
+})
+
+const statusChartHasData = computed(() => statusChartSeries.value.some(v => v > 0))
 </script>
 
 <template>
@@ -82,16 +209,87 @@ const cards = computed(() => {
       class="mb-4"
     />
 
-    <VRow v-else class="match-height">
-      <VCol
-        v-for="card in cards"
-        :key="card.title"
-        cols="12"
-        sm="6"
-        md="3"
-      >
-        <CardStatisticsVertical v-bind="card" />
-      </VCol>
-    </VRow>
+    <template v-else>
+      <VRow class="match-height">
+        <VCol
+          v-for="card in cards"
+          :key="card.title"
+          cols="12"
+          sm="6"
+          md="3"
+        >
+          <CardStatisticsVertical v-bind="card" />
+        </VCol>
+      </VRow>
+
+      <VRow v-if="statusChartConfig" class="match-height mt-1">
+        <VCol cols="12" md="6">
+          <VCard :title="statusChartConfig.title">
+            <VCardText>
+              <apexchart
+                v-if="statusChartHasData"
+                type="donut"
+                height="300"
+                :options="statusChartOptions"
+                :series="statusChartSeries"
+              />
+              <p v-else class="text-medium-emphasis text-center py-10">
+                Belum ada data untuk periode ini.
+              </p>
+            </VCardText>
+          </VCard>
+        </VCol>
+      </VRow>
+
+      <template v-if="role === 'super-admin'">
+        <h5 class="text-h5 mt-6 mb-4">
+          Laporan Keuangan
+        </h5>
+
+        <VRow class="match-height">
+          <VCol
+            v-for="card in financialCards"
+            :key="card.title"
+            cols="12"
+            sm="6"
+            md="4"
+          >
+            <CardStatisticsVertical v-bind="card" />
+          </VCol>
+        </VRow>
+
+        <VRow class="match-height mt-1">
+          <VCol cols="12" md="8">
+            <VCard title="Tren Pendapatan vs Beban (6 Bulan Terakhir)">
+              <VCardText>
+                <apexchart
+                  type="area"
+                  height="340"
+                  :options="trendChartOptions"
+                  :series="trendChartSeries"
+                />
+              </VCardText>
+            </VCard>
+          </VCol>
+
+          <VCol cols="12" md="4">
+            <VCard title="Komposisi Pendapatan">
+              <VCardText>
+                <apexchart
+                  v-if="revenueDonutSeries.length"
+                  type="donut"
+                  height="340"
+                  :options="revenueDonutOptions"
+                  :series="revenueDonutSeries"
+                />
+                <p v-else class="text-medium-emphasis text-center py-10">
+                  Belum ada data pendapatan pada periode ini.
+                </p>
+              </VCardText>
+            </VCard>
+          </VCol>
+        </VRow>
+      </template>
+    </template>
   </div>
 </template>

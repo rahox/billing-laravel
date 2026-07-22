@@ -31,7 +31,7 @@ class ReportController extends Controller
             abort(403, 'Laporan ini hanya untuk Owner/Reseller.');
         }
 
-        return response()->json($this->billingReport->transactionReport($resellerId, $request->query('from'), $request->query('to')));
+        return response()->json($this->billingReport->transactionReport($resellerId, $request->query('from'), $request->query('to'), $request->integer('per_page', 20)));
     }
 
     /**
@@ -48,7 +48,7 @@ class ReportController extends Controller
             abort(403, 'Laporan ini hanya untuk Sales/Owner (dengan sales_id).');
         }
 
-        return response()->json($this->billingReport->salesReport($salesId, $request->query('from'), $request->query('to')));
+        return response()->json($this->billingReport->salesReport($salesId, $request->query('from'), $request->query('to'), $request->integer('per_page', 20)));
     }
 
     /**
@@ -65,7 +65,7 @@ class ReportController extends Controller
             abort(403, 'Laporan ini hanya untuk Collector/Owner (dengan collector_id).');
         }
 
-        return response()->json($this->billingReport->collectorReport($collectorId, $request->query('from'), $request->query('to')));
+        return response()->json($this->billingReport->collectorReport($collectorId, $request->query('from'), $request->query('to'), $request->integer('per_page', 20)));
     }
 
     /**

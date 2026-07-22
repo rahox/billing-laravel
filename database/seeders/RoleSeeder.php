@@ -13,7 +13,7 @@ class RoleSeeder extends Seeder
      */
     private const MODULES = [
         'customers', 'products', 'discounts', 'transactions', 'invoices',
-        'payments', 'expenses', 'journal', 'reports', 'users',
+        'delivery_orders', 'payments', 'expenses', 'journal', 'reports', 'users',
     ];
 
     public function run(): void
@@ -38,6 +38,7 @@ class RoleSeeder extends Seeder
             'products.view', 'discounts.view',
             'transactions.view', 'transactions.create', 'transactions.update',
             'invoices.view', 'invoices.create',
+            'delivery_orders.view', 'delivery_orders.create', 'delivery_orders.update',
             'payments.view',
             'reports.view',
         ]);
@@ -47,6 +48,7 @@ class RoleSeeder extends Seeder
             'customers.view', 'customers.create',
             'products.view',
             'invoices.view',
+            'delivery_orders.view',
             'reports.view',
         ]);
 
@@ -54,6 +56,7 @@ class RoleSeeder extends Seeder
         $collector->syncPermissions([
             'customers.view',
             'invoices.view',
+            'delivery_orders.view',
             'payments.view', 'payments.create', 'payments.update',
             'reports.view',
         ]);

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DeliveryOrderController;
 use App\Http\Controllers\Api\DiscountController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\InvoiceController;
@@ -55,6 +56,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('invoices', [InvoiceController::class, 'index']);
     Route::post('invoices', [InvoiceController::class, 'store'])->middleware('role:super-admin|reseller');
     Route::get('invoices/{invoice}', [InvoiceController::class, 'show']);
+
+    // Delivery order (surat jalan): dibentuk dari transaksi barang oleh owner & reseller.
+    Route::get('delivery-orders', [DeliveryOrderController::class, 'index']);
+    Route::post('delivery-orders', [DeliveryOrderController::class, 'store'])->middleware('role:super-admin|reseller');
+    Route::get('delivery-orders/{deliveryOrder}', [DeliveryOrderController::class, 'show']);
+    Route::post('delivery-orders/{deliveryOrder}/ship', [DeliveryOrderController::class, 'ship'])->middleware('role:super-admin|reseller');
+    Route::post('delivery-orders/{deliveryOrder}/deliver', [DeliveryOrderController::class, 'deliver'])->middleware('role:super-admin|reseller');
+    Route::post('delivery-orders/{deliveryOrder}/cancel', [DeliveryOrderController::class, 'cancel'])->middleware('role:super-admin|reseller');
 
     // Pembayaran: dicatat & dikonfirmasi oleh collector (atau owner).
     Route::get('payments', [PaymentController::class, 'index']);

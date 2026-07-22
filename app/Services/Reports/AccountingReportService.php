@@ -20,16 +20,11 @@ class AccountingReportService
         $query = ChartOfAccount::query()->where('type', $type)->orderBy('code');
 
         $sums = JournalEntryLine::query()
-            ->select('account_id', DB::raw('SUM(debit) as total_debit'), DB::raw('SUM(credit) as total_credit'))
-            ->whereHas('journalEntry', function ($q) use ($from, $to) {
-                if ($from) {
-                    $q->whereDate('entry_date', '>=', $from);
-                }
-                if ($to) {
-                    $q->whereDate('entry_date', '<=', $to);
-                }
-            })
-            ->groupBy('account_id')
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->when($from, fn ($q) => $q->where('journal_entries.entry_date', '>=', $from))
+            ->when($to, fn ($q) => $q->where('journal_entries.entry_date', '<', Carbon::parse($to)->addDay()->toDateString()))
+            ->groupBy('journal_entry_lines.account_id')
+            ->selectRaw('journal_entry_lines.account_id, SUM(journal_entry_lines.debit) as total_debit, SUM(journal_entry_lines.credit) as total_credit')
             ->get()
             ->keyBy('account_id');
 
@@ -89,9 +84,10 @@ class AccountingReportService
         $equity = $this->balancesByType('equity', $inceptionDate, $asOfDate);
 
         // Laba tahun berjalan yang belum ditutup ke Laba Ditahan, agar neraca tetap balance.
+        // (Setara dengan NetIncome(inception..asOf) - NetIncome(inception..yearStart-1), tapi dihitung
+        // langsung dari rentang tahun berjalan saja supaya tidak perlu 2x scan seluruh histori jurnal.)
         $yearStart = Carbon::parse($asOfDate)->startOfYear()->toDateString();
-        $currentYearIncome = $this->incomeStatement($inceptionDate, $asOfDate)['net_income']
-            - $this->incomeStatement($inceptionDate, Carbon::parse($yearStart)->subDay()->toDateString())['net_income'];
+        $currentYearIncome = $this->incomeStatement($yearStart, $asOfDate)['net_income'];
 
         $equity = $equity->push([
             'code' => '3-9000',
@@ -113,6 +109,102 @@ class AccountingReportService
             'total_equity' => $totalEquity,
             'total_liabilities_and_equity' => round($totalLiabilities + $totalEquity, 2),
             'is_balanced' => abs($totalAssets - ($totalLiabilities + $totalEquity)) < 1,
+        ];
+    }
+
+    /**
+     * Ringkasan pendapatan & beban untuk dashboard owner: total periode berjalan,
+     * tren bulanan, dan komposisi pendapatan/beban per akun untuk grafik.
+     *
+     * Berbeda dari incomeStatement(), method ini menarik baris jurnal akun pendapatan/beban
+     * dalam rentang waktu SEKALI saja lalu mengelompokkannya per bulan di PHP, bukan memanggil
+     * incomeStatement() berulang per bulan (yang masing-masing scan ulang seluruh rentang).
+     */
+    public function dashboardFinancials(?string $from = null, ?string $to = null): array
+    {
+        $to = $to ? Carbon::parse($to) : now();
+        $from = $from ? Carbon::parse($from) : $to->copy()->subMonths(5)->startOfMonth();
+
+        $accounts = ChartOfAccount::query()->whereIn('type', ['revenue', 'expense'])->get()->keyBy('id');
+
+        // Agregasi SUM per akun PER BULAN sekaligus di SQL (SUBSTR portable di SQLite/MySQL/PostgreSQL,
+        // beda dengan strftime/DATE_FORMAT yang driver-specific) -- hasilnya cuma ~(jumlah akun x jumlah
+        // bulan) baris, bukan seluruh baris jurnal mentah yang bisa puluhan ribu baris di skala besar.
+        $rows = JournalEntryLine::query()
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->whereIn('journal_entry_lines.account_id', $accounts->keys())
+            ->where('journal_entries.entry_date', '>=', $from->toDateString())
+            ->where('journal_entries.entry_date', '<', $to->copy()->addDay()->toDateString())
+            ->selectRaw('
+                journal_entry_lines.account_id,
+                SUBSTR(journal_entries.entry_date, 1, 7) as ym,
+                SUM(journal_entry_lines.debit) as total_debit,
+                SUM(journal_entry_lines.credit) as total_credit
+            ')
+            ->groupBy('journal_entry_lines.account_id', 'ym')
+            ->get();
+
+        // Saldo per akun per bulan ('Y-m'), dari hasil agregasi SQL di atas.
+        $balancesByMonthAccount = [];
+        $totalByAccount = [];
+        foreach ($rows as $row) {
+            $account = $accounts->get($row->account_id);
+            $signed = $account->type === 'revenue'
+                ? (float) $row->total_credit - (float) $row->total_debit
+                : (float) $row->total_debit - (float) $row->total_credit;
+
+            $balancesByMonthAccount[$row->ym][$row->account_id] = $signed;
+            $totalByAccount[$row->account_id] = ($totalByAccount[$row->account_id] ?? 0) + $signed;
+        }
+
+        $revenueIds = $accounts->where('type', 'revenue')->keys();
+        $cogsIds = $accounts->where('type', 'expense')->filter(fn ($a) => str_starts_with($a->code, '5-10'))->keys();
+        $opexIds = $accounts->where('type', 'expense')->reject(fn ($a) => str_starts_with($a->code, '5-10'))->keys();
+
+        $sumFor = fn (\Illuminate\Support\Collection $ids, array $balances) => $ids->sum(fn ($id) => $balances[$id] ?? 0);
+
+        $totalRevenue = round($sumFor($revenueIds, $totalByAccount), 2);
+        $totalCogs = round($sumFor($cogsIds, $totalByAccount), 2);
+        $totalOpex = round($sumFor($opexIds, $totalByAccount), 2);
+
+        $trend = collect();
+        $cursor = $from->copy()->startOfMonth();
+        while ($cursor->lte($to)) {
+            $monthBalances = $balancesByMonthAccount[$cursor->format('Y-m')] ?? [];
+            $monthRevenue = round($sumFor($revenueIds, $monthBalances), 2);
+            $monthCogs = round($sumFor($cogsIds, $monthBalances), 2);
+            $monthOpex = round($sumFor($opexIds, $monthBalances), 2);
+
+            $trend->push([
+                'month' => $cursor->translatedFormat('M Y'),
+                'pendapatan' => $monthRevenue,
+                'beban' => round($monthCogs + $monthOpex, 2),
+                'laba' => round($monthRevenue - $monthCogs - $monthOpex, 2),
+            ]);
+
+            $cursor->addMonthNoOverflow();
+        }
+
+        $pendapatanByCategory = $revenueIds
+            ->map(fn ($id) => ['name' => $accounts[$id]->name, 'value' => round($totalByAccount[$id] ?? 0, 2)])
+            ->filter(fn ($row) => $row['value'] > 0)
+            ->sortByDesc('value')
+            ->values();
+
+        $bebanByCategory = $cogsIds->concat($opexIds)
+            ->map(fn ($id) => ['name' => $accounts[$id]->name, 'value' => round($totalByAccount[$id] ?? 0, 2)])
+            ->filter(fn ($row) => abs($row['value']) > 0.004)
+            ->sortByDesc('value')
+            ->values();
+
+        return [
+            'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
+            'total_pendapatan' => $totalRevenue,
+            'total_beban' => round($totalCogs + $totalOpex, 2),
+            'laba_bersih' => round($totalRevenue - $totalCogs - $totalOpex, 2),
+            'pendapatan_by_category' => $pendapatanByCategory,
+            'beban_by_category' => $bebanByCategory,
+            'monthly_trend' => $trend->values(),
         ];
     }
 }
