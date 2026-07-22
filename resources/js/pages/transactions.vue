@@ -52,13 +52,25 @@ onMounted(() => {
   loadDropdowns()
 })
 
+const selectedItems = computed(() => items.value.filter(i => selected.value.includes(i.id)))
+
 const canBuildInvoice = computed(() => {
   if (selected.value.length === 0)
     return false
 
-  const customerIds = new Set(items.value.filter(i => selected.value.includes(i.id)).map(i => i.customer_id))
+  const customerIds = new Set(selectedItems.value.map(i => i.customer_id))
 
   return customerIds.size === 1
+})
+
+const canBuildDeliveryOrder = computed(() => {
+  if (selected.value.length === 0)
+    return false
+
+  const customerIds = new Set(selectedItems.value.map(i => i.customer_id))
+  const allBarang = selectedItems.value.every(i => i.product?.type === 'barang' && !i.delivery_order_id)
+
+  return customerIds.size === 1 && allBarang
 })
 
 const dialog = ref(false)
@@ -114,6 +126,49 @@ async function buildInvoice() {
     invoicing.value = false
   }
 }
+
+const doDialog = ref(false)
+const doSaving = ref(false)
+const doErrors = ref({})
+const doForm = ref({
+  delivery_date: new Date().toISOString().slice(0, 10),
+  recipient_name: '',
+  address: '',
+  courier: '',
+  tracking_number: '',
+  notes: '',
+})
+
+function openDeliveryOrderDialog() {
+  doErrors.value = {}
+  const customer = customers.value.find(c => c.id === selectedItems.value[0]?.customer_id)
+
+  doForm.value = {
+    delivery_date: new Date().toISOString().slice(0, 10),
+    recipient_name: customer?.name ?? '',
+    address: customer?.address ?? '',
+    courier: '',
+    tracking_number: '',
+    notes: '',
+  }
+  doDialog.value = true
+}
+
+async function saveDeliveryOrder() {
+  doSaving.value = true
+  doErrors.value = {}
+  try {
+    await client.post('/delivery-orders', { ...doForm.value, transaction_ids: selected.value })
+    doDialog.value = false
+    loadItems()
+  }
+  catch (error) {
+    doErrors.value = error.response?.data?.errors ?? {}
+  }
+  finally {
+    doSaving.value = false
+  }
+}
 </script>
 
 <template>
@@ -137,6 +192,14 @@ async function buildInvoice() {
             @click="buildInvoice"
           >
             Buat Invoice dari Terpilih ({{ selected.length }})
+          </VBtn>
+          <VBtn
+            color="info"
+            prepend-icon="ri-truck-line"
+            :disabled="!canBuildDeliveryOrder"
+            @click="openDeliveryOrderDialog"
+          >
+            Buat Delivery Order dari Terpilih ({{ selected.length }})
           </VBtn>
           <VBtn prepend-icon="ri-add-line" @click="openCreate">
             Tambah Transaksi
@@ -224,6 +287,43 @@ async function buildInvoice() {
               Batal
             </VBtn>
             <VBtn type="submit" :loading="saving">
+              Simpan
+            </VBtn>
+          </div>
+        </VForm>
+      </VCardText>
+    </VCard>
+  </VDialog>
+
+  <VDialog v-model="doDialog" max-width="600">
+    <VCard title="Buat Delivery Order">
+      <VCardText>
+        <VForm @submit.prevent="saveDeliveryOrder">
+          <VRow>
+            <VCol cols="12" md="6">
+              <VTextField v-model="doForm.delivery_date" type="date" label="Tanggal Kirim" :error-messages="doErrors.delivery_date" />
+            </VCol>
+            <VCol cols="12" md="6">
+              <VTextField v-model="doForm.recipient_name" label="Nama Penerima" :error-messages="doErrors.recipient_name" />
+            </VCol>
+            <VCol cols="12">
+              <VTextarea v-model="doForm.address" label="Alamat Kirim" rows="2" :error-messages="doErrors.address" />
+            </VCol>
+            <VCol cols="12" md="6">
+              <VTextField v-model="doForm.courier" label="Kurir/Ekspedisi (opsional)" :error-messages="doErrors.courier" />
+            </VCol>
+            <VCol cols="12" md="6">
+              <VTextField v-model="doForm.tracking_number" label="No. Resi (opsional)" :error-messages="doErrors.tracking_number" />
+            </VCol>
+            <VCol cols="12">
+              <VTextarea v-model="doForm.notes" label="Catatan" rows="2" />
+            </VCol>
+          </VRow>
+          <div class="d-flex justify-end gap-2 mt-4">
+            <VBtn variant="text" @click="doDialog = false">
+              Batal
+            </VBtn>
+            <VBtn type="submit" :loading="doSaving">
               Simpan
             </VBtn>
           </div>

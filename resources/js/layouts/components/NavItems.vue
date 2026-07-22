@@ -35,6 +35,10 @@ const isCollector = computed(() => authStore.hasRole('collector'))
   />
   <VerticalNavLink :item="{ title: 'Invoice', icon: 'ri-file-list-3-line', to: '/invoices' }" />
   <VerticalNavLink
+    v-if="isSuperAdmin || isReseller"
+    :item="{ title: 'Delivery Order', icon: 'ri-truck-line', to: '/delivery-orders' }"
+  />
+  <VerticalNavLink
     v-if="isSuperAdmin || isCollector"
     :item="{ title: 'Pembayaran', icon: 'ri-wallet-3-line', to: '/payments' }"
   />
